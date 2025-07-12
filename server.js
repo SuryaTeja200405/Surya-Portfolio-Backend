@@ -8,24 +8,33 @@ require('dotenv').config();
 
 const app = express();
 
+// Security Headers
 app.use(helmet());
 
+// ✅ Updated CORS to allow frontend on Vercel
 app.use(cors({
-  origin: ['http://localhost:5500', 'http://127.0.0.1:5500'],
+  origin: [
+    'http://localhost:5500',
+    'http://127.0.0.1:5500',
+    'https://surya-portfolio-frontend.vercel.app/' // ✅ Add your Vercel frontend URL here
+  ],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true
 }));
 
+// Rate Limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, 
+  windowMs: 15 * 60 * 1000,
   max: 5,
   message: 'Too many contact form submissions, please try again later.'
 });
 app.use('/api/contact', limiter);
 
+// Middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// MongoDB Connection
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
@@ -33,6 +42,7 @@ mongoose.connect(process.env.MONGO_URI, {
 .then(() => console.log('✅ Connected to MongoDB'))
 .catch(err => console.error('❌ MongoDB connection error:', err));
 
+// Contact Schema
 const ContactSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -45,7 +55,7 @@ const ContactSchema = new mongoose.Schema({
     required: [true, 'Email is required'],
     trim: true,
     lowercase: true,
-    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
+    match: [/^\w+([.-]?\w+)@\w+([.-]?\w+)(\.\w{2,3})+$/, 'Please enter a valid email']
   },
   subject: {
     type: String,
@@ -63,9 +73,9 @@ const ContactSchema = new mongoose.Schema({
   ip: String,
   userAgent: String
 });
-
 const Contact = mongoose.model('Contact', ContactSchema);
 
+// Nodemailer setup
 const createTransporter = () => {
   return nodemailer.createTransport({
     service: 'gmail',
@@ -79,6 +89,7 @@ const createTransporter = () => {
   });
 };
 
+// Email template
 const createEmailTemplate = (name, email, subject, message) => {
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
@@ -105,6 +116,7 @@ const createEmailTemplate = (name, email, subject, message) => {
   `;
 };
 
+// Contact Form Route
 app.post('/api/contact', async (req, res) => {
   try {
     const { name, email, subject, message } = req.body;
@@ -113,7 +125,7 @@ app.post('/api/contact', async (req, res) => {
       return res.status(400).json({ success: false, message: 'All fields are required' });
     }
 
-    const emailRegex = /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/;
+    const emailRegex = /^\w+([.-]?\w+)@\w+([.-]?\w+)(\.\w{2,3})+$/;
     if (!emailRegex.test(email)) {
       return res.status(400).json({ success: false, message: 'Please enter a valid email address' });
     }
@@ -134,11 +146,11 @@ app.post('/api/contact', async (req, res) => {
     const emailHtml = createEmailTemplate(name, email, subject, message);
 
     const mailOptions = {
-      from: `"Portfolio Contact" <${process.env.MAIL_USER}>`,
+      from: "Portfolio Contact" <${process.env.MAIL_USER}>,
       to: process.env.MAIL_RECEIVER,
-      subject: `New Contact Form Message: ${subject}`,
+      subject: New Contact Form Message: ${subject},
       html: emailHtml,
-      text: `Name: ${name}\nEmail: ${email}\nSubject: ${subject}\nMessage: ${message}`
+      text: Name: ${name}\nEmail: ${email}\nSubject: ${subject}\nMessage: ${message}
     };
 
     await transporter.sendMail(mailOptions);
@@ -161,6 +173,7 @@ app.post('/api/contact', async (req, res) => {
   }
 });
 
+// Health check endpoint (optional)
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
@@ -169,18 +182,21 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// 404 fallback
+app.use('*', (req, res) => {
+  res.status(404).json({ success: false, message: 'Route not found' });
+});
+
+// Global error handler
 app.use((err, req, res, next) => {
   console.error('❌ Server error:', err);
   res.status(500).json({ success: false, message: 'Internal server error' });
 });
 
-app.use('*', (req, res) => {
-  res.status(404).json({ success: false, message: 'Route not found' });
-});
-
+// Server start
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📧 Email notifications will be sent to: ${process.env.MAIL_RECEIVER}`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(🚀 Server running on port ${PORT});
+  console.log(📧 Email notifications will be sent to: ${process.env.MAIL_RECEIVER});
+  console.log(🌍 Environment: ${process.env.NODE_ENV || 'development'});
 });
