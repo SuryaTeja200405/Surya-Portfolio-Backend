@@ -215,3 +215,34 @@ app.use(cors({
   origin: ['http://localhost:5500', 'http://127.0.0.1:5500'],
   credentials: true
 }));
+
+const express = require('express');
+const cors = require('cors');
+
+const app = express();
+
+// Replace this with your frontend domain
+const allowedOrigins = ['https://surya-portfolio-frontend.vercel.app'];
+
+app.use(cors({
+  origin: allowedOrigins,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true
+}));
+
+app.use(express.json()); // To parse JSON request bodies
+
+// Your contact route
+app.post('/api/contact', (req, res) => {
+  // You can log to debug
+  console.log('Contact form submission received:', req.body);
+  
+  // Respond to frontend
+  res.status(200).json({ message: 'Message received successfully!' });
+});
+
+// Start the server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
