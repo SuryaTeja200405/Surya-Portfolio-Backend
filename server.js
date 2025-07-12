@@ -16,7 +16,7 @@ app.use(cors({
   origin: [
     'http://localhost:5500',
     'http://127.0.0.1:5500',
-    'https://surya-portfolio-frontend.vercel.app/' // ✅ Add your Vercel frontend URL here
+    'https://surya-portfolio-frontend.vercel.app/' // ✅ Your Vercel frontend URL
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true
@@ -146,11 +146,11 @@ app.post('/api/contact', async (req, res) => {
     const emailHtml = createEmailTemplate(name, email, subject, message);
 
     const mailOptions = {
-      from: "Portfolio Contact" <${process.env.MAIL_USER}>,
+      from: `Portfolio Contact <${process.env.MAIL_USER}>`,
       to: process.env.MAIL_RECEIVER,
-      subject: New Contact Form Message: ${subject},
+      subject: `New Contact Form Message: ${subject}`,
       html: emailHtml,
-      text: Name: ${name}\nEmail: ${email}\nSubject: ${subject}\nMessage: ${message}
+      text: `Name: ${name}\nEmail: ${email}\nSubject: ${subject}\nMessage: ${message}`
     };
 
     await transporter.sendMail(mailOptions);
@@ -173,7 +173,7 @@ app.post('/api/contact', async (req, res) => {
   }
 });
 
-// Health check endpoint (optional)
+// Health check endpoint
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
@@ -196,7 +196,7 @@ app.use((err, req, res, next) => {
 // Server start
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(🚀 Server running on port ${PORT});
-  console.log(📧 Email notifications will be sent to: ${process.env.MAIL_RECEIVER});
-  console.log(🌍 Environment: ${process.env.NODE_ENV || 'development'});
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📧 Email notifications will be sent to: ${process.env.MAIL_RECEIVER}`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
 });
