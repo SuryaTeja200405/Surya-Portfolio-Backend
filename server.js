@@ -8,21 +8,22 @@ require('dotenv').config();
 
 const app = express();
 
+// ✅ Required for Render or proxy-based platforms
+app.set('trust proxy', 1);
+
 // Security headers
 app.use(helmet());
 
-// ✅ Proper CORS configuration for Vercel frontend
+// ✅ CORS configuration
 app.use(cors({
   origin: ['https://surya-portfolio-frontend.vercel.app'],
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type', 'Accept'],
   credentials: true
 }));
-
-// ✅ Allow preflight requests
 app.options('*', cors());
 
-// Rate Limiting
+// ✅ Rate Limiting to prevent spam
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
@@ -34,7 +35,7 @@ app.use('/api/contact', limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// MongoDB connection
+// ✅ MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
@@ -44,12 +45,7 @@ mongoose.connect(process.env.MONGO_URI, {
 
 // Contact Schema
 const ContactSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-    trim: true,
-    maxlength: 100
-  },
+  name: { type: String, required: true, trim: true, maxlength: 100 },
   email: {
     type: String,
     required: true,
@@ -57,57 +53,48 @@ const ContactSchema = new mongoose.Schema({
     lowercase: true,
     match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Invalid email']
   },
-  subject: {
-    type: String,
-    required: true,
-    trim: true,
-    maxlength: 200
-  },
-  message: {
-    type: String,
-    required: true,
-    trim: true,
-    maxlength: 1000
-  },
+  subject: { type: String, required: true, trim: true, maxlength: 200 },
+  message: { type: String, required: true, trim: true, maxlength: 1000 },
   date: { type: Date, default: Date.now },
   ip: String,
   userAgent: String
 });
 const Contact = mongoose.model('Contact', ContactSchema);
 
-// Email transporter
+// Nodemailer Transporter
 const createTransporter = () => {
+  if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
+    console.error('❌ MAIL_USER or MAIL_PASS missing in environment');
+    return null;
+  }
+
   return nodemailer.createTransport({
     service: 'gmail',
     auth: {
       user: process.env.MAIL_USER,
       pass: process.env.MAIL_PASS
     },
-    tls: {
-      rejectUnauthorized: false
-    }
+    tls: { rejectUnauthorized: false }
   });
 };
 
-// Email HTML template
-const createEmailTemplate = (name, email, subject, message) => {
-  return `
-    <div style="font-family: Arial; padding: 20px; background: #f9f9f9;">
-      <div style="background: #fff; padding: 30px; border-radius: 10px;">
-        <h2>New Contact Message</h2>
-        <p><strong>Name:</strong> ${name}</p>
-        <p><strong>Email:</strong> ${email}</p>
-        <p><strong>Subject:</strong> ${subject}</p>
-        <p><strong>Message:</strong></p>
-        <div style="background: #f0f0f0; padding: 10px; border-radius: 5px;">${message.replace(/\n/g, '<br>')}</div>
-        <hr>
-        <p style="font-size: 12px; color: #666;">Sent on ${new Date().toLocaleString()}</p>
-      </div>
+// Email Template
+const createEmailTemplate = (name, email, subject, message) => `
+  <div style="font-family: Arial; padding: 20px; background: #f9f9f9;">
+    <div style="background: #fff; padding: 30px; border-radius: 10px;">
+      <h2>New Contact Message</h2>
+      <p><strong>Name:</strong> ${name}</p>
+      <p><strong>Email:</strong> ${email}</p>
+      <p><strong>Subject:</strong> ${subject}</p>
+      <p><strong>Message:</strong></p>
+      <div style="background: #f0f0f0; padding: 10px; border-radius: 5px;">${message.replace(/\n/g, '<br>')}</div>
+      <hr>
+      <p style="font-size: 12px; color: #666;">Sent on ${new Date().toLocaleString()}</p>
     </div>
-  `;
-};
+  </div>
+`;
 
-// Contact Route
+// Contact Form Handler
 app.post('/api/contact', async (req, res) => {
   try {
     const { name, email, subject, message } = req.body;
@@ -134,6 +121,10 @@ app.post('/api/contact', async (req, res) => {
     console.log('✅ Contact saved:', contact._id);
 
     const transporter = createTransporter();
+    if (!transporter) {
+      return res.status(500).json({ success: false, message: 'Email transporter setup failed. Check server logs.' });
+    }
+
     const emailHtml = createEmailTemplate(name, email, subject, message);
 
     const mailOptions = {
@@ -145,12 +136,12 @@ app.post('/api/contact', async (req, res) => {
     };
 
     await transporter.sendMail(mailOptions);
-    console.log('✅ Email sent successfully');
+    console.log('✅ Email sent successfully to:', process.env.MAIL_RECEIVER);
 
     res.status(200).json({ success: true, message: 'Thank you! Your message has been sent successfully.' });
 
   } catch (error) {
-    console.error('❌ Error:', error);
+    console.error('❌ Contact form error:', error);
 
     if (error.name === 'ValidationError') {
       return res.status(400).json({ success: false, message: 'Validation error. Please check your input.' });
@@ -164,7 +155,7 @@ app.post('/api/contact', async (req, res) => {
   }
 });
 
-// Health check route
+// Health Check
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
@@ -173,20 +164,21 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Fallback 404 route
+// 404 Handler
 app.use('*', (req, res) => {
   res.status(404).json({ success: false, message: 'Route not found' });
 });
 
-// Global error handler
+// Global Error Handler
 app.use((err, req, res, next) => {
   console.error('❌ Uncaught server error:', err);
   res.status(500).json({ success: false, message: 'Internal server error' });
 });
 
-// Start the server
+// Start Server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📧 Emails will be sent to: ${process.env.MAIL_RECEIVER}`);
 });
+
